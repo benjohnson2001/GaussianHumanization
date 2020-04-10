@@ -1,0 +1,113 @@
+desc:Gaussian Humanization
+
+slider1:0.33<0,1.77,0.01>timing standard deviation (ms)
+slider2:1<0,30,1>velocity standard deviation
+slider3:0<-30,30>timing shift (ms) [read-only]
+slider4:0<-64,64,1>velocity shift [read-only]
+
+@init
+  
+  buffer = 0;
+  blockLength = 128;
+  memset(0, 0, blockLength);
+  bufferCounter = 0;
+
+  NOTE_ON = 9;
+  NOTE_OFF = 8;
+  AFTERTCH = 10;
+
+@block
+
+  while (
+    midirecv(offset, msg1, msg23) ? (
+
+      minimumPosition = 0;
+      maximumPosition = samplesblock - 1;
+      noteNumber = msg23 & 127;
+
+
+      messageType = (msg1 / 16) | 0;
+      
+      (messageType == NOTE_ON) ? (
+
+        // generate normal deviates
+        while (
+          v1 = 2.0 * rand(1) - 1.0;
+          v2 = 2.0 * rand(1) - 1.0;
+          s = v1 * v1 + v2 * v2;
+          s >= 1.0 || s == 0;
+        );
+        multiplier = sqrt(-2.0 * log(s) / s);
+        v1 *= multiplier;
+        v2 *= multiplier;
+  
+
+        // adjust position
+        timeShiftInMilliseconds = v1*slider1;
+        positionShift = timeShiftInMilliseconds * srate / 1000;
+
+        newPosition = offset + positionShift;
+        newPosition = max(minimumPosition, newPosition);
+        newPosition = min(newPosition, maximumPosition);
+
+        positionShift = newPosition - offset;
+        buffer[noteNumber] = positionShift;
+        offset = newPosition;
+
+        timeShiftInMilliseconds = positionShift * 1000 / srate;
+        slider3 = timeShiftInMilliseconds;
+        sliderchange(2^2);
+
+
+        // adjust velocity
+        velocity = (msg23 / 256) | 0;
+        velocityShift = floor(v2*slider2 + 0.5);
+
+        adjustedVelocity = velocity + velocityShift;
+        adjustedVelocity = max(1, adjustedVelocity);
+        adjustedVelocity = min(adjustedVelocity, 127);
+
+        velocityShift = adjustedVelocity - velocity;
+
+        adjustedVelocity |= 0;
+        msg23 = noteNumber + adjustedVelocity * 256;
+        slider4 = velocityShift;
+        sliderchange(2^3);
+      );
+
+
+      (messageType == AFTERTCH) ? (
+        offset += buffer[noteNumber];
+      );
+
+
+      (messageType == NOTE_OFF) ? (
+        offset += buffer[noteNumber];
+        buffer[noteNumber] = 0;
+      ); 
+
+
+      buffer[blockLength+bufferCounter] = offset;
+      buffer[blockLength+bufferCounter+1] = msg1;
+      buffer[blockLength+bufferCounter+2] = msg23;
+      bufferCounter += 3;
+    );
+  );
+
+  // Find everything in the buffer that is due
+  // to be played back in this block.
+  i = 0;
+  while (
+    (i < bufferCounter) ? (
+      offset = buffer[blockLength + i];
+
+      (offset < samplesblock) ? (
+        midisend(offset, buffer[blockLength+i+1], buffer[blockLength+i+2]);
+        memcpy(blockLength+i, blockLength+i+3, bufferCounter-i);
+        bufferCounter -= 3;
+      ) : (
+        buffer[blockLength+i] -= samplesblock;
+        i += 3;
+      );
+    );
+  );
