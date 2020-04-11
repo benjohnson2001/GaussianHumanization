@@ -8,7 +8,7 @@ This tool is not meant for establishing groove relationships between instruments
 
 ## installation:
 
-1. save the gaussian_humanization file in Reaper's "Effects" folder
+1. [download](https://raw.githubusercontent.com/benjohnson2001/GaussianHumanization/master/gaussian_humanization) and save the gaussian_humanization file in Reaper's "Effects" folder
 2. restart Reaper and add the FX to a track (search for "pandabot" or "gauss")
 3. make sure you place it BEFORE a virtual instrument in the FX chain
 
