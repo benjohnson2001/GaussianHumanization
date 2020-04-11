@@ -1,6 +1,8 @@
+# Gaussian Humanization JSFX
+
 ![interface](interface.png)
 
-## description:
+## usage:
 
 This tool is not meant for establishing groove relationships between instruments, you should do that using "Playback time offset" available in a Track's IO window. This tool is for generating subtle variation and life within a set groove position.
 
