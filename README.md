@@ -19,7 +19,7 @@ This tool was made from modifying [schwa's midi_humanizer](https://forum.cockos.
   - works on chords!
   - does not drop notes when you have a bunch of contiguous notes in a row
   - input is standard deviation instead of vague "humanization level"
-  - does not skew
+  - does not skew, maintains bell curve shape
   - uses Box-Muller algorithm instead of the Central Limit Theorem method
   
 
