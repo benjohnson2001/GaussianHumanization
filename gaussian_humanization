@@ -16,51 +16,96 @@ slider4:0<-64,64,1>velocity shift [read-only]
   NOTE_OFF = 8;
   AFTERTCH = 10;
 
+  previousBeatPosition = -1;
+  previousOffset = -1;
+
+  positionShift = -1;
+
+  noteNumberIndex = 1;
+  while ( noteNumberIndex < 128 ) (
+    lastNoteOffIndexArray[noteNumberIndex] = -1;
+    noteNumberIndex += 1;
+  );
+
 @block
 
   while (
+
     midirecv(offset, msg1, msg23) ? (
+
+      // we're in a new block now
+      // we no longer have access to the last note off
+      (offset == 0) ? (
+        
+          noteNumberIndex = 1;
+          while ( noteNumberIndex < 128 ) (
+            lastNoteOffIndexArray[noteNumberIndex] = -1;
+            noteNumberIndex += 1;
+          );
+      );
+
+      
 
       minimumPosition = 0;
       maximumPosition = samplesblock - 1;
       noteNumber = msg23 & 127;
 
-
       messageType = (msg1 / 16) | 0;
+      velocity = (msg23 / 256) | 0;
       
-      (messageType == NOTE_ON) ? (
+      (messageType == NOTE_ON && velocity > 0) ? (
 
-        // generate normal deviates
-        while (
-          v1 = 2.0 * rand(1) - 1.0;
-          v2 = 2.0 * rand(1) - 1.0;
-          s = v1 * v1 + v2 * v2;
-          s >= 1.0 || s == 0;
+        (beat_position == previousBeatPosition) ? (
+
+          offset = previousOffset;
+
+        ) : (
+
+          // when offset is 0 we can't adjust the previous note off, so we can't normalize this note
+          // we already can't move it negative because of minimumPosition
+          // we also can't move it positive because it will create a gap
+          (offset == 0) ? (
+            
+            positionShift = 0;
+
+          ) : (
+
+            // generate normal deviates
+            while (
+              v1 = 2.0 * rand(1) - 1.0;
+              v2 = 2.0 * rand(1) - 1.0;
+              s = v1 * v1 + v2 * v2;
+              s >= 1.0 || s == 0;
+            );
+            multiplier = sqrt(-2.0 * log(s) / s);
+            v1 *= multiplier;
+            v2 *= multiplier;
+      
+            // adjust position
+            timeShiftInMilliseconds = v1*slider1;
+            positionShift = timeShiftInMilliseconds * srate / 1000;
+
+            newPosition = offset + positionShift;
+            newPosition = max(minimumPosition, newPosition);
+            newPosition = min(newPosition, maximumPosition);
+
+            positionShift = newPosition - offset;
+            offset = newPosition;
+
+            timeShiftInMilliseconds = positionShift * 1000 / srate;
+            slider3 = timeShiftInMilliseconds;
+          );
+
+          sliderchange(2^2);
+          previousOffset = offset;
         );
-        multiplier = sqrt(-2.0 * log(s) / s);
-        v1 *= multiplier;
-        v2 *= multiplier;
-  
 
-        // adjust position
-        timeShiftInMilliseconds = v1*slider1;
-        positionShift = timeShiftInMilliseconds * srate / 1000;
-
-        newPosition = offset + positionShift;
-        newPosition = max(minimumPosition, newPosition);
-        newPosition = min(newPosition, maximumPosition);
-
-        positionShift = newPosition - offset;
-        buffer[noteNumber] = positionShift;
-        offset = newPosition;
-
-        timeShiftInMilliseconds = positionShift * 1000 / srate;
-        slider3 = timeShiftInMilliseconds;
-        sliderchange(2^2);
-
+        // adjust the position of the note's last note off, to avoid overlapping notes or gaps
+        (lastNoteOffIndexArray[noteNumber] > -1) ? (
+          buffer[lastNoteOffIndexArray[noteNumber]] += positionShift;
+        );
 
         // adjust velocity
-        velocity = (msg23 / 256) | 0;
         velocityShift = floor(v2*slider2 + 0.5);
 
         adjustedVelocity = velocity + velocityShift;
@@ -73,19 +118,13 @@ slider4:0<-64,64,1>velocity shift [read-only]
         msg23 = noteNumber + adjustedVelocity * 256;
         slider4 = velocityShift;
         sliderchange(2^3);
+
+        previousBeatPosition = beat_position;
       );
 
-
-      (messageType == AFTERTCH) ? (
-        offset += buffer[noteNumber];
-      );
-
-
-      (messageType == NOTE_OFF) ? (
-        offset += buffer[noteNumber];
-        buffer[noteNumber] = 0;
+      (messageType == NOTE_OFF || (messageType == NOTE_ON && velocity < 1)) ? (
+        lastNoteOffIndexArray[noteNumber] = blockLength+bufferCounter;        
       ); 
-
 
       buffer[blockLength+bufferCounter] = offset;
       buffer[blockLength+bufferCounter+1] = msg1;
