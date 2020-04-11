@@ -18,8 +18,7 @@ slider4:0<-64,64,1>velocity shift [read-only]
 
   previousBeatPosition = -1;
   previousOffset = -1;
-
-  positionShift = -1;
+  positionShift = 0;
 
   noteNumberIndex = 1;
   while ( noteNumberIndex < 128 ) (
@@ -67,6 +66,7 @@ slider4:0<-64,64,1>velocity shift [read-only]
           (offset == 0) ? (
             
             positionShift = 0;
+            slider3 = 0;
 
           ) : (
 
@@ -81,15 +81,25 @@ slider4:0<-64,64,1>velocity shift [read-only]
             v1 *= multiplier;
             v2 *= multiplier;
       
-            // adjust position
-            timeShiftInMilliseconds = v1*slider1;
-            positionShift = timeShiftInMilliseconds * srate / 1000;
 
-            newPosition = offset + positionShift;
-            newPosition = max(minimumPosition, newPosition);
-            newPosition = min(newPosition, maximumPosition);
+            oldOffsetForDebugger = offset;
+            // adjust position
+            unboundedTimeShiftInMilliseconds = v1*slider1;
+            unboundedPositionShift = unboundedTimeShiftInMilliseconds * srate / 1000;
+
+            unboundedNewPosition = offset + unboundedPositionShift;
+            newPosition = unboundedNewPosition;
+
+            (newPosition < minimumPosition) ? (
+              newPosition = minimumPosition;
+            );
+
+            (newPosition > maximumPosition) ? (
+              newPosition = maximumPosition;
+            );
 
             positionShift = newPosition - offset;
+
             offset = newPosition;
 
             timeShiftInMilliseconds = positionShift * 1000 / srate;
@@ -106,11 +116,18 @@ slider4:0<-64,64,1>velocity shift [read-only]
         );
 
         // adjust velocity
-        velocityShift = floor(v2*slider2 + 0.5);
+        unboundedVelocityShift = floor(v2*slider2 + 0.5);
 
-        adjustedVelocity = velocity + velocityShift;
-        adjustedVelocity = max(1, adjustedVelocity);
-        adjustedVelocity = min(adjustedVelocity, 127);
+        unboundedAdjustedVelocity = velocity + unboundedVelocityShift;
+        adjustedVelocity = unboundedAdjustedVelocity;
+
+        (adjustedVelocity < 1) ? (
+          adjustedVelocity = 1;
+        );
+
+        (adjustedVelocity > 127) ? (
+          adjustedVelocity = 127;
+        );
 
         velocityShift = adjustedVelocity - velocity;
 
